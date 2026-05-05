@@ -18,37 +18,46 @@ fn do_restart(state: &BackendState) -> Result<String, String> {
         let _ = child.kill();
     }
 
-    // Start new
-    let cmd = if cfg!(target_os = "windows") { "python" } else { "python3" };
+    // Find Python absolute path for macOS GUI environment
+    let mut cmd = if cfg!(target_os = "windows") { "python".to_string() } else { "python3".to_string() };
+    
+    if !cfg!(target_os = "windows") {
+        let possible_pythons = vec![
+            "/opt/homebrew/bin/python3",
+            "/usr/bin/python3",
+            "/usr/local/bin/python3",
+        ];
+        for py in possible_pythons {
+            if std::path::Path::new(py).exists() {
+                cmd = py.to_string();
+                break;
+            }
+        }
+    }
     
     // Smart path detection
-    let mut final_path = "main.py".to_string();
-    let mut found = false;
-
-    // Check common locations
-    let possible_locations = vec![
-        "main.py".to_string(),
-        "../main.py".to_string(),
-        "../../main.py".to_string(),
-        "../../../main.py".to_string(),
-        "/Users/chintukumar/ceova_cctv/main.py".to_string(), // Absolute fallback for your machine
-    ];
-
-    for loc in possible_locations {
-        if std::path::Path::new(&loc).exists() {
-            final_path = loc;
-            found = true;
-            break;
+    let mut final_path = "/Users/chintukumar/ceova_cctv/main.py".to_string();
+    
+    // Check if absolute path exists, otherwise fallback to relative
+    if !std::path::Path::new(&final_path).exists() {
+        if std::path::Path::new("../main.py").exists() {
+            final_path = "../main.py".to_string();
+        } else if std::path::Path::new("main.py").exists() {
+            final_path = "main.py".to_string();
         }
     }
 
-    if !found {
-        println!("WARNING: could not find main.py. Backend auto-start may fail.");
+    let mut cmd_builder = Command::new(cmd);
+    cmd_builder.arg(&final_path);
+
+    // Set working directory to where main.py is
+    if let Some(parent) = std::path::Path::new(&final_path).parent() {
+        if parent.as_os_str().len() > 0 {
+            cmd_builder.current_dir(parent);
+        }
     }
 
-    match Command::new(cmd)
-        .arg(final_path) 
-        .spawn() 
+    match cmd_builder.spawn() 
     {
         Ok(child) => {
             *child_guard = Some(child);
