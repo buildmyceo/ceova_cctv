@@ -13,55 +13,74 @@ struct BackendState {
 fn do_restart(state: &BackendState) -> Result<String, String> {
     let mut child_guard = state.child.lock().unwrap();
     
-    // Kill existing
+    // Kill existing backend process
     if let Some(mut child) = child_guard.take() {
         let _ = child.kill();
     }
 
-    // Find Python absolute path for macOS GUI environment
-    let mut cmd = if cfg!(target_os = "windows") { "python".to_string() } else { "python3".to_string() };
-    
-    if !cfg!(target_os = "windows") {
+    let new_child: std::io::Result<Child>;
+
+    if cfg!(target_os = "windows") {
+        // On Windows: look for bundled backend.exe next to our own executable
+        let exe_dir = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+            .unwrap_or_else(|| std::path::PathBuf::from("."));
+
+        let backend_exe = exe_dir.join("backend.exe");
+        
+        if backend_exe.exists() {
+            // Use the bundled PyInstaller backend
+            new_child = Command::new(&backend_exe)
+                .current_dir(&exe_dir)
+                .spawn();
+        } else {
+            // Fallback: try system python (dev mode)
+            new_child = Command::new("python")
+                .arg("main.py")
+                .current_dir(&exe_dir)
+                .spawn();
+        }
+    } else {
+        // On macOS/Linux: find Python and run main.py
+        let mut python_cmd = "python3".to_string();
         let possible_pythons = vec![
             "/opt/homebrew/bin/python3",
             "/usr/bin/python3",
             "/usr/local/bin/python3",
         ];
-        for py in possible_pythons {
+        for py in &possible_pythons {
             if std::path::Path::new(py).exists() {
-                cmd = py.to_string();
+                python_cmd = py.to_string();
                 break;
             }
         }
-    }
-    
-    // Smart path detection
-    let mut final_path = "/Users/chintukumar/ceova_cctv/main.py".to_string();
-    
-    // Check if absolute path exists, otherwise fallback to relative
-    if !std::path::Path::new(&final_path).exists() {
-        if std::path::Path::new("../main.py").exists() {
-            final_path = "../main.py".to_string();
-        } else if std::path::Path::new("main.py").exists() {
-            final_path = "main.py".to_string();
+
+        // Smart path detection for main.py
+        let mut main_py = "/Users/chintukumar/ceova_cctv/main.py".to_string();
+        if !std::path::Path::new(&main_py).exists() {
+            if std::path::Path::new("../main.py").exists() {
+                main_py = "../main.py".to_string();
+            } else if std::path::Path::new("main.py").exists() {
+                main_py = "main.py".to_string();
+            }
         }
+
+        let work_dir = std::path::Path::new(&main_py)
+            .parent()
+            .unwrap_or(std::path::Path::new("."))
+            .to_path_buf();
+
+        new_child = Command::new(&python_cmd)
+            .arg(&main_py)
+            .current_dir(&work_dir)
+            .spawn();
     }
 
-    let mut cmd_builder = Command::new(cmd);
-    cmd_builder.arg(&final_path);
-
-    // Set working directory to where main.py is
-    if let Some(parent) = std::path::Path::new(&final_path).parent() {
-        if parent.as_os_str().len() > 0 {
-            cmd_builder.current_dir(parent);
-        }
-    }
-
-    match cmd_builder.spawn() 
-    {
+    match new_child {
         Ok(child) => {
             *child_guard = Some(child);
-            Ok("Backend restarted".into())
+            Ok("Backend started".into())
         }
         Err(e) => Err(format!("Failed to start backend: {}", e)),
     }
