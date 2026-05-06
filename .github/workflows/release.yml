@@ -45,12 +45,25 @@ jobs:
       - name: Build Python backend with PyInstaller (Windows)
         if: matrix.platform == 'windows-latest'
         shell: powershell
+        working-directory: ${{ github.workspace }}
         run: |
-          pip install pyinstaller fastapi uvicorn opencv-python-headless requests ultralytics
-          pyinstaller --onefile --name backend --distpath src-tauri/binaries/ main.py
-          # Rename to match Tauri sidecar naming convention (triple target)
-          $target = "x86_64-pc-windows-msvc"
-          Rename-Item src-tauri/binaries/backend.exe "backend-$target.exe" -ErrorAction SilentlyContinue
+          pip install pyinstaller fastapi uvicorn opencv-python-headless requests ultralytics pillow
+          pyinstaller `
+            --onefile `
+            --name backend `
+            --distpath ceova-desktop/src-tauri/binaries/ `
+            --hidden-import=ultralytics `
+            --hidden-import=ultralytics.models `
+            --hidden-import=ultralytics.models.yolo `
+            --hidden-import=cv2 `
+            --hidden-import=uvicorn `
+            --hidden-import=fastapi `
+            --hidden-import=starlette `
+            --collect-data=ultralytics `
+            --noconfirm `
+            main.py
+          Write-Host "✅ backend.exe built successfully"
+          ls ceova-desktop/src-tauri/binaries/
 
       - uses: tauri-apps/tauri-action@v0
         env:
