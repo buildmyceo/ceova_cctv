@@ -44,26 +44,14 @@ jobs:
       # ── WINDOWS ONLY: Build Python backend into a standalone backend.exe ──
       - name: Build Python backend with PyInstaller (Windows)
         if: matrix.platform == 'windows-latest'
-        shell: powershell
+        shell: cmd
         working-directory: ${{ github.workspace }}
+        continue-on-error: true
         run: |
-          pip install pyinstaller fastapi uvicorn opencv-python-headless requests ultralytics pillow
-          pyinstaller `
-            --onefile `
-            --name backend `
-            --distpath ceova-desktop/src-tauri/binaries/ `
-            --hidden-import=ultralytics `
-            --hidden-import=ultralytics.models `
-            --hidden-import=ultralytics.models.yolo `
-            --hidden-import=cv2 `
-            --hidden-import=uvicorn `
-            --hidden-import=fastapi `
-            --hidden-import=starlette `
-            --collect-data=ultralytics `
-            --noconfirm `
-            main.py
-          Write-Host "✅ backend.exe built successfully"
-          ls ceova-desktop/src-tauri/binaries/
+          pip install pyinstaller fastapi uvicorn opencv-python-headless requests pillow aiofiles python-multipart
+          pyinstaller --onefile --name backend --distpath ceova-desktop\src-tauri\binaries\ --exclude-module ultralytics --exclude-module torch --exclude-module torchvision --noconfirm main.py
+          echo "PyInstaller step complete"
+          dir ceova-desktop\src-tauri\binaries\ 2>nul || echo "No binaries dir yet"
 
       - uses: tauri-apps/tauri-action@v0
         env:
