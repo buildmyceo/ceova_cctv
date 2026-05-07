@@ -10,7 +10,7 @@ struct BackendState {
     child: Arc<Mutex<Option<Child>>>,
 }
 
-fn do_restart(state: &BackendState) -> Result<String, String> {
+fn do_restart(state: &BackendState, app: &tauri::AppHandle) -> Result<String, String> {
     let mut child_guard = state.child.lock().unwrap();
     
     // Kill existing backend process
@@ -20,27 +20,30 @@ fn do_restart(state: &BackendState) -> Result<String, String> {
 
     let new_child: std::io::Result<Child>;
 
-    if cfg!(target_os = "windows") {
-        // On Windows: look for bundled backend.exe next to our own executable
-        let exe_dir = std::env::current_exe()
-            .ok()
-            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
-            .unwrap_or_else(|| std::path::PathBuf::from("."));
+    let exe_dir = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
 
+    // In Tauri v2, bundled resources are in the resource_dir
+    let resource_dir = app.path().resource_dir().unwrap_or(exe_dir.clone());
+    
+    if cfg!(target_os = "windows") {
+        // Try different possible paths for the backend
         let mut backend_exe = exe_dir.join("backend.exe");
         
-        // If simple name doesn't exist, check for sidecar name
         if !backend_exe.exists() {
-            let sidecar_name = exe_dir.join("backend-x86_64-pc-windows-msvc.exe");
-            if sidecar_name.exists() {
-                backend_exe = sidecar_name;
+            // Try binaries/backend.exe in resource folder (Windows bundle)
+            let res_path = resource_dir.join("binaries").join("backend.exe");
+            if res_path.exists() {
+                backend_exe = res_path;
             }
         }
         
         if backend_exe.exists() {
             // Use the bundled PyInstaller backend
             new_child = Command::new(&backend_exe)
-                .current_dir(&exe_dir)
+                .current_dir(backend_exe.parent().unwrap_or(&exe_dir))
                 .spawn();
         } else {
             // Fallback: try system python (dev mode)
@@ -65,12 +68,14 @@ fn do_restart(state: &BackendState) -> Result<String, String> {
         }
 
         // Smart path detection for main.py
-        let mut main_py = "/Users/chintukumar/ceova_cctv/main.py".to_string();
-        if !std::path::Path::new(&main_py).exists() {
-            if std::path::Path::new("../main.py").exists() {
-                main_py = "../main.py".to_string();
-            } else if std::path::Path::new("main.py").exists() {
-                main_py = "main.py".to_string();
+        let mut main_py = exe_dir.join("python_backend/main.py");
+        if !main_py.exists() {
+            // Check in resources
+            let res_path = resource_dir.join("python_backend").join("main.py");
+            if res_path.exists() {
+                main_py = res_path;
+            } else if std::path::Path::new("python_backend/main.py").exists() {
+                main_py = std::path::PathBuf::from("python_backend/main.py");
             }
         }
 
@@ -95,8 +100,8 @@ fn do_restart(state: &BackendState) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn restart_backend(state: tauri::State<BackendState>) -> Result<String, String> {
-    do_restart(&state)
+fn restart_backend(state: tauri::State<BackendState>, app: tauri::AppHandle) -> Result<String, String> {
+    do_restart(&state, &app)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -112,7 +117,7 @@ pub fn run() {
         .setup(move |app| {
             // --- AUTO START BACKEND ---
             let initial_state = app.state::<BackendState>();
-            let _ = do_restart(&initial_state);
+            let _ = do_restart(&initial_state, app.handle());
 
             // --- SYSTEM TRAY SETUP ---
             let quit_i = MenuItem::with_id(app, "quit", "Quit Ceova", true, None::<&str>)?;
@@ -142,7 +147,7 @@ pub fn run() {
                         }
                         "restart" => {
                             let state = app.state::<BackendState>();
-                            let _ = do_restart(&state);
+                            let _ = do_restart(&state, app);
                         }
                         _ => {}
                     }

@@ -36,11 +36,9 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "externalBin": [
-      "binaries/backend"
-    ],
     "resources": [
-      "../python_backend/yolov8n.pt"
+      "../python_backend/yolov8n.pt",
+      "binaries/*"
     ],
     "icon": [
       "icons/32x32.png",
