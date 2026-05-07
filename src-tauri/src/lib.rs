@@ -33,8 +33,8 @@ fn do_restart(state: &BackendState, app: &tauri::AppHandle) -> Result<String, St
         let mut backend_exe = exe_dir.join("backend.exe");
         
         if !backend_exe.exists() {
-            // Try binaries/backend.exe in resource folder (Windows bundle)
-            let res_path = resource_dir.join("binaries").join("backend.exe");
+            // Try backend.exe in resource folder (Windows bundle)
+            let res_path = resource_dir.join("backend.exe");
             if res_path.exists() {
                 backend_exe = res_path;
             }

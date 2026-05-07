@@ -45,7 +45,7 @@ jobs:
       - name: Prepare Resource Folders
         shell: bash
         run: |
-          mkdir -p ceova-desktop/src-tauri/binaries
+          mkdir -p ceova-desktop/src-tauri/resources
 
       # ── WINDOWS ONLY: Build Python backend into a standalone backend.exe ──
       - name: Build Python backend with PyInstaller (Windows)
@@ -55,9 +55,9 @@ jobs:
         continue-on-error: true
         run: |
           pip install pyinstaller fastapi uvicorn opencv-python-headless requests pillow aiofiles python-multipart
-          pyinstaller --onefile --name backend --distpath ceova-desktop\src-tauri\binaries\ --exclude-module ultralytics --exclude-module torch --exclude-module torchvision --noconfirm ceova-desktop/python_backend/main.py
+          pyinstaller --onefile --name backend --distpath ceova-desktop\src-tauri\resources\ --exclude-module ultralytics --exclude-module torch --exclude-module torchvision --noconfirm ceova-desktop/python_backend/main.py
           echo "✅ backend.exe built successfully"
-          dir ceova-desktop\src-tauri\binaries
+          dir ceova-desktop\src-tauri\resources
 
       - uses: tauri-apps/tauri-action@v0
         env:
