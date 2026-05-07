@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 
 const CCTVConnection = () => {
-  const [backendUrl, setBackendUrl] = useState("http://localhost:8086");
+  const [backendUrl, setBackendUrl] = useState("http://localhost:8085");
   const [status, setStatus] = useState<"connected" | "disconnected" | "idle">("idle");
 
   useEffect(() => {
@@ -93,7 +93,7 @@ const CCTVConnection = () => {
         type="text"
         value={backendUrl}
         onChange={(e) => setBackendUrl(e.target.value)}
-        placeholder="http://localhost:8086"
+        placeholder="http://localhost:8085"
         style={inputStyle}
       />
 

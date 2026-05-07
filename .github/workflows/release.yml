@@ -50,8 +50,10 @@ jobs:
         run: |
           pip install pyinstaller fastapi uvicorn opencv-python-headless requests pillow aiofiles python-multipart
           pyinstaller --onefile --name backend --distpath ceova-desktop\src-tauri\binaries\ --exclude-module ultralytics --exclude-module torch --exclude-module torchvision --noconfirm main.py
-          echo "PyInstaller step complete"
-          dir ceova-desktop\src-tauri\binaries\ 2>nul || echo "No binaries dir yet"
+          echo "✅ backend.exe built successfully"
+          cd ceova-desktop\src-tauri\binaries
+          move backend.exe backend-x86_64-pc-windows-msvc.exe
+          dir
 
       - uses: tauri-apps/tauri-action@v0
         env:

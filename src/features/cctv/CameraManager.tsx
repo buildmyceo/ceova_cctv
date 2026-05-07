@@ -15,14 +15,9 @@ const CameraManager = () => {
   const [activeCameraId, setActiveCameraId] = useState<string | null>(null);
   const [cameraStatuses, setCameraStatuses] = useState<Record<string, {status: string, reason?: string}>>({});
   
-  const [ip, setIp] = useState(localStorage.getItem("ceova_last_ip") || "192.168.1.245");
-  const [username, setUsername] = useState(localStorage.getItem("ceova_last_user") || "admin");
-  const [password, setPassword] = useState(localStorage.getItem("ceova_last_pass") || "");
-  const [showPassword, setShowPassword] = useState(false);
-  const [status, setStatus] = useState<"idle" | "testing" | "error" | "login">("login");
+  const [status, setStatus] = useState<"idle" | "error" | "loading">("loading");
   const [_loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
-  const [scanProgress, setScanProgress] = useState(0);
   const [backendStatus, setBackendStatus] = useState<"ONLINE" | "OFFLINE">("OFFLINE");
   const [locationEnabled, setLocationEnabled] = useState(localStorage.getItem("ceova_location_enabled") === "true");
   const [location, setLocation] = useState<{lat: number, lon: number} | null>(null);
@@ -87,6 +82,17 @@ const CameraManager = () => {
   useEffect(() => {
     const fetchCameras = async () => {
       try {
+        const sessionRes = await fetch(`${apiBase}/session-status`);
+        if (!sessionRes.ok) throw new Error("Backend not reachable");
+        const sessionData = await sessionRes.json();
+        
+        if (!sessionData.authenticated) {
+            setStatus("error");
+            setErrorMsg("Unauthorized. Please launch from Ceova Desktop.");
+            setLoading(false);
+            return;
+        }
+
         const response = await fetch(`${apiBase}/cameras`);
         if (response.ok) {
           const data = await response.json();
@@ -95,10 +101,8 @@ const CameraManager = () => {
           const camIds = Object.keys(data);
           if (camIds.length > 0 && !activeCameraId) {
             setActiveCameraId(camIds[0]);
-            setStatus("idle");
-          } else if (camIds.length === 0) {
-            setStatus("login");
           }
+          setStatus("idle");
         }
       } catch (err) {
         console.error("Failed to fetch cameras:", err);
@@ -130,53 +134,7 @@ const CameraManager = () => {
     return () => clearInterval(interval);
   }, [apiBase]);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setStatus("testing");
-    setErrorMsg("");
-    setScanProgress(0);
 
-    try {
-      localStorage.setItem("ceova_last_ip", ip);
-      localStorage.setItem("ceova_last_user", username);
-      localStorage.setItem("ceova_last_pass", password);
-
-      const response = await fetch(`${apiBase}/scan`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ip_prefix: ip, username, password })
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to start scan");
-      }
-
-      const pollProgress = setInterval(async () => {
-        const res = await fetch(`${apiBase}/scan-progress`);
-        const data = await res.json();
-        setScanProgress(Math.round((data.progress / data.total) * 100));
-
-        if (data.progress >= data.total) {
-          clearInterval(pollProgress);
-          const camsRes = await fetch(`${apiBase}/cameras`);
-          const camsData = await camsRes.json();
-          setCameras(camsData);
-          
-          if (Object.keys(camsData).length > 0) {
-            setActiveCameraId(Object.keys(camsData)[0]);
-            setStatus("idle");
-          } else {
-            setStatus("error");
-            setErrorMsg("No cameras found. Verify IP and credentials.");
-          }
-        }
-      }, 500);
-
-    } catch (err) {
-      setStatus("error");
-      setErrorMsg("Connection failed. Check backend status.");
-    }
-  };
 
   const [viewMode, setViewMode] = useState<"single" | "grid">("grid");
   const [imgKeys, setImgKeys] = useState<Record<string, number>>({});
@@ -202,46 +160,26 @@ const CameraManager = () => {
     transition: "all 0.2s"
   });
 
-  if (status === "login" || status === "testing" || status === "error") {
+  if (status === "error" || status === "loading") {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100vw", height: "100vh", background: "#000", color: "#fff", fontFamily: "monospace" }}>
-        <div style={{ width: "400px", padding: "40px", border: "1px solid #222", background: "#050505" }}>
+        <div style={{ width: "400px", padding: "40px", border: "1px solid #222", background: "#050505", textAlign: "center" }}>
           <div style={{ marginBottom: "30px" }}>
             <div style={{ fontSize: "14px", fontWeight: "bold", letterSpacing: "2px" }}>CEOVA_SECURE</div>
             <div style={{ fontSize: "9px", color: "#444", marginTop: "4px" }}>ACCESS_TERMINAL_V4.0</div>
           </div>
-
-          <form onSubmit={handleLogin}>
-            <div style={{ marginBottom: "20px" }}>
-              <label style={{ display: "block", fontSize: "10px", color: "#666", marginBottom: "8px" }}>DEVICE_IP</label>
-              <input type="text" value={ip} onChange={(e) => setIp(e.target.value)} style={{ width: "100%", background: "none", border: "1px solid #333", color: "#fff", padding: "10px", fontSize: "12px", outline: "none" }} placeholder="192.168.1.245" required />
-            </div>
-
-            <div style={{ marginBottom: "20px" }}>
-              <label style={{ display: "block", fontSize: "10px", color: "#666", marginBottom: "8px" }}>IDENTIFIER</label>
-              <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} style={{ width: "100%", background: "none", border: "1px solid #333", color: "#fff", padding: "10px", fontSize: "12px", outline: "none" }} placeholder="admin" required />
-            </div>
-
-            <div style={{ marginBottom: "30px" }}>
-              <label style={{ display: "block", fontSize: "10px", color: "#666", marginBottom: "8px" }}>ACCESS_KEY</label>
-              <div style={{ position: "relative" }}>
-                <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} style={{ width: "100%", background: "none", border: "1px solid #333", color: "#fff", padding: "10px", fontSize: "12px", outline: "none" }} required />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#444", fontSize: "10px", cursor: "pointer" }}>{showPassword ? "HIDE" : "SHOW"}</button>
-              </div>
-            </div>
-
-            <button type="submit" disabled={status === "testing"} style={{ width: "100%", padding: "12px", background: "#fff", color: "#000", border: "none", fontWeight: "bold", fontSize: "12px", cursor: status === "testing" ? "default" : "pointer", opacity: status === "testing" ? 0.5 : 1 }}>{status === "testing" ? `LINKING_${scanProgress}%` : "ESTABLISH_LINK"}</button>
-          </form>
-
-          {status === "error" && (
-            <div style={{ marginTop: "20px", color: "#f00", fontSize: "10px", textAlign: "center", textTransform: "uppercase" }}>// ERROR: {errorMsg}</div>
+          
+          {status === "error" ? (
+            <div style={{ color: "#f00", fontSize: "12px", textTransform: "uppercase" }}>// ERROR: {errorMsg}</div>
+          ) : (
+            <div style={{ color: "#fff", fontSize: "12px", textTransform: "uppercase" }}>CONNECTING TO BACKEND...</div>
           )}
         </div>
       </div>
     );
   }
 
-  if (status === "idle" && Object.keys(cameras).length > 0) {
+  if (status === "idle") {
     const activeCamera = activeCameraId ? cameras[activeCameraId] : null;
     const cameraList = Object.values(cameras);
 

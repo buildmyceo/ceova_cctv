@@ -27,7 +27,15 @@ fn do_restart(state: &BackendState) -> Result<String, String> {
             .and_then(|p| p.parent().map(|p| p.to_path_buf()))
             .unwrap_or_else(|| std::path::PathBuf::from("."));
 
-        let backend_exe = exe_dir.join("backend.exe");
+        let mut backend_exe = exe_dir.join("backend.exe");
+        
+        // If simple name doesn't exist, check for sidecar name
+        if !backend_exe.exists() {
+            let sidecar_name = exe_dir.join("backend-x86_64-pc-windows-msvc.exe");
+            if sidecar_name.exists() {
+                backend_exe = sidecar_name;
+            }
+        }
         
         if backend_exe.exists() {
             // Use the bundled PyInstaller backend
