@@ -16,11 +16,23 @@ from urllib.parse import urlparse
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 import logging
+
+# ── WRITABLE STORAGE PATHS ──────────────────────────────────────────────────
+# We use the user's home directory to ensure we have write permissions on Windows
+STORAGE_DIR = os.path.join(os.path.expanduser("~"), ".ceova")
+os.makedirs(STORAGE_DIR, exist_ok=True)
+
+LOG_FILE = os.path.join(STORAGE_DIR, "backend.log")
+CAMERAS_FILE = os.path.join(STORAGE_DIR, "cameras.json")
+
+# Configure logging to use the writable path
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    filename=os.path.join(os.path.dirname(__file__), "backend.log"),
-    filemode='a'
+    handlers=[
+        logging.FileHandler(LOG_FILE),
+        logging.StreamHandler(sys.stdout)
+    ]
 )
 logger = logging.getLogger("UnifiedBackend")
 logger.info("Backend process starting...")
