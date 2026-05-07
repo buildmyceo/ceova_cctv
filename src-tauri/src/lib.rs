@@ -45,7 +45,7 @@ fn do_restart(state: &BackendState) -> Result<String, String> {
         } else {
             // Fallback: try system python (dev mode)
             new_child = Command::new("python")
-                .arg("main.py")
+                .arg("python_backend/main.py")
                 .current_dir(&exe_dir)
                 .spawn();
         }

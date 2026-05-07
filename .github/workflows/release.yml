@@ -41,6 +41,15 @@ jobs:
       - name: install frontend dependencies
         run: npm install
 
+      # ── PRE-BUILD: Ensure Sidecar folders exist ──
+      - name: Prepare Sidecar Folders
+        shell: bash
+        run: |
+          mkdir -p ceova-desktop/src-tauri/binaries
+          if [[ "${{ matrix.platform }}" == "macos-latest" ]]; then
+            touch ceova-desktop/src-tauri/binaries/backend-aarch64-apple-darwin
+          fi
+
       # ── WINDOWS ONLY: Build Python backend into a standalone backend.exe ──
       - name: Build Python backend with PyInstaller (Windows)
         if: matrix.platform == 'windows-latest'
@@ -49,7 +58,7 @@ jobs:
         continue-on-error: true
         run: |
           pip install pyinstaller fastapi uvicorn opencv-python-headless requests pillow aiofiles python-multipart
-          pyinstaller --onefile --name backend --distpath ceova-desktop\src-tauri\binaries\ --exclude-module ultralytics --exclude-module torch --exclude-module torchvision --noconfirm main.py
+          pyinstaller --onefile --name backend --distpath ceova-desktop\src-tauri\binaries\ --exclude-module ultralytics --exclude-module torch --exclude-module torchvision --noconfirm ceova-desktop/python_backend/main.py
           echo "✅ backend.exe built successfully"
           cd ceova-desktop\src-tauri\binaries
           move backend.exe backend-x86_64-pc-windows-msvc.exe
